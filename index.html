@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABYSSAL ECHOES // Bioluminescent Organism Simulator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #010308;
+            color: #38bdf8;
+        }
+
+        #webgl-canvas {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .hud-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(4, 9, 20, 0.85);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            backdrop-filter: blur(16px);
+            padding: 20px;
+            border-radius: 14px;
+            width: 320px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        }
+
+        h1 {
+            font-size: 1.05rem;
+            letter-spacing: 1.5px;
+            margin-bottom: 14px;
+            color: #fff;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        select, input[type="range"] {
+            width: 100%;
+            background: #091121;
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 6px;
+            padding: 8px;
+            outline: none;
+            font-size: 0.85rem;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #0284c7, #0d9488);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .info-card {
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: #cbd5e1;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 3px solid #38bdf8;
+            margin-top: 12px;
+        }
+    </style>
+
+    <!-- Three.js and OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <canvas id="webgl-canvas"></canvas>
+
+    <div class="hud-panel">
+        <h1><span>🪼</span> ABYSSAL ORGANISM</h1>
+
+        <div class="control-group">
+            <label for="speciesSelect">Deep-Sea Specimen:</label>
+            <select id="speciesSelect" onchange="updateSpecimen()">
+                <option value="cyan">Bathypelagic Siphonophore (Cyan Glow)</option>
+                <option value="emerald">Benthic Comb Jelly (Emerald Pulse)</option>
+                <option value="crimson">Abyssal Crown Jelly (Deep Crimson)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="pulseSpeed">Pulse Frequency:</label>
+            <input type="range" id="pulseSpeed" min="0.5" max="3.0" step="0.1" value="1.2">
+        </div>
+
+        <div class="control-group">
+            <label for="tentacleDensity">Tentacle/Cilia Wave Motion:</label>
+            <input type="range" id="tentacleDensity" min="1.0" max="5.0" step="0.2" value="2.5">
+        </div>
+
+        <button class="btn" onclick="triggerBioluminescentFlash()">TRIGGER DEFENSE FLASH</button>
+
+        <div class="info-card" id="infoText">
+            <strong>Specimen Status:</strong> Simulating luciferin-luciferase chemical reaction in deep-sea organ structures.
+        </div>
+    </div>
+
+    <script>
+        // --- 1. THREE.JS ENGINE SETUP ---
+        const canvas = document.getElementById('webgl-canvas');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x010308, 0.04);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 12);
+
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // --- 2. LIGHTING & AMBIENCE ---
+        const ambientLight = new THREE.AmbientLight(0x020817, 1.0);
+        scene.add(ambientLight);
+
+        const coreLight = new THREE.PointLight(0x38bdf8, 3, 20);
+        scene.add(coreLight);
+
+        // --- 3. PROCEDURAL BIOLUMINESCENT ORGANISM GEOMETRY ---
+        const particleCount = 2500;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        const basePositions = new Float32Array(particleCount * 3);
+
+        let currentColor = new THREE.Color(0x38bdf8);
+
+        for (let i = 0; i < particleCount; i++) {
+            let u = Math.random() * Math.PI * 2;
+            let v = Math.random() * Math.PI;
+            let radius = 2.5 + Math.sin(u * 5) * 0.4 + (Math.random() - 0.5) * 0.3;
+
+            // Bell / Crown shape with trailing cilia tentacles
+            let x = radius * Math.sin(v) * Math.cos(u);
+            let y = radius * Math.cos(v) * 1.2;
+            let z = radius * Math.sin(v) * Math.sin(u);
+
+            if (y < -0.5) {
+                // Extend bottom tentacles downward
+                y -= Math.random() * 4.0;
+                x *= 0.6;
+                z *= 0.6;
+            }
+
+            positions[i * 3] = x;
+            positions[i * 3 + 1] = y;
+            positions[i * 3 + 2] = z;
+
+            basePositions[i * 3] = x;
+            basePositions[i * 3 + 1] = y;
+            basePositions[i * 3 + 2] = z;
+
+            colors[i * 3] = currentColor.r;
+            colors[i * 3 + 1] = currentColor.g;
+            colors[i * 3 + 2] = currentColor.b;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.18,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending
+        });
+
+        const organism = new THREE.Points(geometry, material);
+        scene.add(organism);
+
+        // --- 4. SPECIMEN & FLASH LOGIC ---
+        let flashIntensity = 1.0;
+
+        function updateSpecimen() {
+            const spec = document.getElementById('speciesSelect').value;
+            if (spec === 'cyan') currentColor = new THREE.Color(0x38bdf8);
+            else if (spec === 'emerald') currentColor = new THREE.Color(0x10b981);
+            else if (spec === 'crimson') currentColor = new THREE.Color(0xf43f5e);
+
+            coreLight.color.copy(currentColor);
+
+            const colAttr = geometry.attributes.color;
+            for (let i = 0; i < particleCount; i++) {
+                colAttr.setXYZ(i, currentColor.r, currentColor.g, currentColor.b);
+            }
+            colAttr.needsUpdate = true;
+        }
+
+        function triggerBioluminescentFlash() {
+            flashIntensity = 4.0;
+            setTimeout(() => flashIntensity = 1.0, 1200);
+        }
+
+        // --- 5. ANIMATION LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+            const speed = parseFloat(document.getElementById('pulseSpeed').value);
+            const waveAmp = parseFloat(document.getElementById('tentacleDensity').value);
+
+            const posAttr = geometry.attributes.position;
+
+            for (let i = 0; i < particleCount; i++) {
+                let bx = basePositions[i * 3];
+                let by = basePositions[i * 3 + 1];
+                let bz = basePositions[i * 3 + 2];
+
+                // Dynamic breathing contraction and tentacle sway
+                let pulse = Math.sin(elapsedTime * speed * 2.0 - by * 0.5) * 0.15;
+                let sway = Math.sin(elapsedTime * 1.5 + by) * (by < -0.5 ? 0.3 * waveAmp : 0.05);
+
+                posAttr.setX(i, bx * (1 + pulse) + sway);
+                posAttr.setY(i, by + Math.sin(elapsedTime * speed) * 0.2);
+                posAttr.setZ(i, bz * (1 + pulse));
+            }
+
+            posAttr.needsUpdate = true;
+            organism.rotation.y = elapsedTime * 0.15;
+
+            coreLight.intensity = (2.0 + Math.sin(elapsedTime * speed * 3.0) * 1.5) * flashIntensity;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Responsive Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+                                                                      </html>
+                                                                      
